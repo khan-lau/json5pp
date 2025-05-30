@@ -1,6 +1,8 @@
 # json5pp
 JSON (ECMA-404 and JSON5) parser &amp; stringifier written in **C++11**.
 
+修复 json5 `key`后 `冒号`前携带空格的时抛出异常的问题
+
 # Features
 
 * Easy to embed to your project. Only single file `json5pp.hpp` required.
