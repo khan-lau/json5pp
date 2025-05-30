@@ -1349,37 +1349,76 @@ private:
     }
   }
 
-  /**
-   * @brief Parse object key
-   * 
-   * @return A parsed string
-   */
-  std::string parse_key()
-  {
-    static const char context[] = "object-key";
-    std::string buffer;
-    int ch = skip_spaces();
-    if (has_flag(flags::unquoted_key)) {
-      if ((ch != '"') && (ch != '\'')) {
-        for (;; ch = istream.get()) {
-          if ((ch == '_') || (ch == '$') || (is_alpha(ch))) {
-            // [IdentifierStart]
-          } else if (is_digit(ch) && (!buffer.empty())) {
-            // [UnicodeDigit]
-          } else if (ch == ':') {
-            break;
-          } else {
-            throw syntax_error(ch, context);
-          }
-          buffer.append(1, (char)ch);
+  // /**
+  //  * @brief Parse object key
+  //  * 
+  //  * @return A parsed string
+  //  */
+  // std::string parse_key()
+  // {
+  //   static const char context[] = "object-key";
+  //   std::string buffer;
+  //   int ch = skip_spaces();
+  //   if (has_flag(flags::unquoted_key)) {
+  //     if ((ch != '"') && (ch != '\'')) {
+  //       for (;; ch = istream.get()) {
+  //         if ((ch == '_') || (ch == '$') || (is_alpha(ch))) {
+  //           // [IdentifierStart]
+  //         } else if (is_digit(ch) && (!buffer.empty())) {
+  //           // [UnicodeDigit]
+  //         } else if (ch == ':') {
+  //           break;
+  //         } else {
+  //           throw syntax_error(ch, context);
+  //         }
+  //         buffer.append(1, (char)ch);
+  //       }
+  //       istream.unget();
+  //       return buffer;
+  //     }
+  //   }
+  //   parse_string(buffer, ch, context);
+  //   return buffer;
+  // }
+
+    /**
+     * @brief Parse object key, key后面有空格抛异常 bugfix,  key : "value", 不再异常
+     * @return A parsed string
+     */
+    std::string parse_key() {
+        static const char context[] = "object-key";
+        std::string buffer;
+        int ch = skip_spaces(); // 跳过键前的空格
+
+        if (has_flag(flags::unquoted_key)) {
+            if ((ch != '"') && (ch != '\'')) { // 检查是否是非引用键
+                bool key_ended = false; // 标记键名是否已完成解析
+                for (;; ch = istream.get()) {
+                    if (ch == ':') { // 遇到冒号，键名解析结束
+                        istream.unget(); // 将冒号放回流
+                        break;
+                    } else if (std::isspace(ch)) { // 遇到空格
+                        if (buffer.empty()) { // 如果键名还没开始就遇到空格，则报错
+                            throw syntax_error(ch, "unexpected space before unquoted key");
+                        }
+                        // 如果键名已经有内容，遇到空格表示键名结束，之后应该只有更多空格和冒号。此时，我们不再把空格加到 buffer，而是标记键名已结束。
+                        key_ended = true;
+                        // 继续读取下一个字符，看是不是冒号或更多空格
+                    } else if (!key_ended && ((ch == '_') || (ch == '$') || (is_alpha(ch)) || (is_digit(ch) && (!buffer.empty())))) {
+                        // 如果键名还未结束，且字符是合法键名组成部分
+                        buffer.append(1, (char)ch);
+                    } else {
+                        // 其他任何字符在键名结束后，或者在键名内不合法时，都报错
+                        throw syntax_error(ch, context);
+                    }
+                }
+                return buffer; // 返回解析到的键名
+            }
         }
-        istream.unget();
+        // 处理引用键 (保持不变，因为 parse_object 会处理其后的空格)
+        parse_string(buffer, ch, context);
         return buffer;
-      }
     }
-    parse_string(buffer, ch, context);
-    return buffer;
-  }
 
   /**
    * @brief Parse object value
